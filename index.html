@@ -14,9 +14,10 @@
   <div>
     <h1>Outlet Tidak Jual LM</h1>
     <p class="sub" id="subtitle">Memuat data…</p>
+    <p class="sub sync" id="syncNote"></p>
   </div>
   <div class="top-actions">
-    <button id="btnExport" class="btn">Unduh CSV</button>
+    <button id="btnExport" class="btn">Unduh Excel</button>
     <button id="btnFilters" class="btn btn-ghost only-mobile">Filter</button>
   </div>
 </header>
@@ -30,6 +31,13 @@
     <label class="field">
       <span>Cari nama / pemilik / alamat</span>
       <input type="search" id="fSearch" placeholder="mis. warung, Pondok Bambu">
+    </label>
+    <label class="field"><span>Status kunjungan</span>
+      <select id="fVisit">
+        <option value="">Semua</option>
+        <option value="belum">Belum didatangi</option>
+        <option value="sudah">Sudah didatangi</option>
+      </select>
     </label>
     <label class="field"><span>Kota</span><select id="fKota"></select></label>
     <label class="field"><span>Kecamatan</span><select id="fKec"></select></label>
@@ -59,12 +67,18 @@
 
     <section class="panel" id="tab-map">
       <div id="map"></div>
+      <div class="legend">
+        <span><i class="dot dot-todo"></i>Belum didatangi</span>
+        <span><i class="dot dot-done"></i>Sudah didatangi</span>
+        <span class="muted">Angka di lingkaran = jumlah outlet di area itu</span>
+      </div>
     </section>
 
     <section class="panel hidden" id="tab-table">
       <div class="table-wrap">
         <table id="tbl">
           <thead><tr>
+            <th data-sort="_visit">Status</th>
             <th data-sort="Store Name">Nama Toko</th>
             <th data-sort="Store Owner">Pemilik</th>
             <th data-sort="Store Type">Tipe</th>
@@ -72,7 +86,7 @@
             <th data-sort="Kelurahan">Kelurahan</th>
             <th data-sort="Top Seller AMDK">Top Seller</th>
             <th data-sort="Daily Revenue Average" class="num">Omzet/Hari</th>
-            <th data-sort="created_at">Disurvei</th>
+            <th>Catatan</th>
           </tr></thead>
           <tbody></tbody>
         </table>
@@ -99,6 +113,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="data/outlets.js"></script>
 <script src="app.js"></script>
 </body>

@@ -16,6 +16,9 @@
   const PHOTO_COLS = ["Storefront Display Photo", "Store-in Display Photo", "Refrigerator Display",
     "Chiller Display", "Coolbox Display", "Showcase Display", "Standing Cabinet / Shelves Display"];
   const PAGE = 50;
+  const LS_KEY = "outlet-lm-visits";
+  const COLOR_VISITED = "#16a34a";
+  const COLOR_PENDING = "#ea580c";
 
   const state = { brands: new Set(), coolers: new Set(), sort: "created_at", asc: false, page: 0 };
   let filtered = outlets;
@@ -42,6 +45,73 @@
     el.innerHTML = '<option value="">Semua</option>' +
       values.map((v) => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
     el.value = values.includes(cur) ? cur : "";
+  }
+  function fmtDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    return isNaN(d) ? "" : d.toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+  }
+
+  // ---------- visit store ----------
+  // Di claude.ai tanda kunjungan disimpan bersama lewat `db`; di tempat lain (mis. GitHub Pages)
+  // disimpan di browser ini saja.
+  const visits = new Map();
+  const store = { mode: window.claude?.use ? "pending" : "local", db: null, user: null, uid: null, canWrite: true };
+  const isVisited = (o) => !!visits.get(o.id)?.visited;
+
+  function loadLocal() {
+    try {
+      Object.entries(JSON.parse(localStorage.getItem(LS_KEY) || "{}")).forEach(([k, v]) => visits.set(k, v));
+    } catch (e) { /* storage tidak tersedia */ }
+  }
+  function saveLocal() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(Object.fromEntries(visits))); } catch (e) { /* abaikan */ }
+  }
+  function renderSyncNote() {
+    const text = {
+      pending: "Menghubungkan penyimpanan…",
+      shared: store.canWrite ? "Tanda kunjungan tersimpan bersama untuk semua yang membuka halaman ini" : "Kamu hanya bisa melihat tanda kunjungan",
+      local: "Tanda kunjungan tersimpan di browser ini saja",
+    }[store.mode];
+    $("syncNote").textContent = text;
+  }
+
+  async function initStore() {
+    if (store.mode === "local") { loadLocal(); renderSyncNote(); return; }
+    renderSyncNote();
+    const db = await window.claude.use("db");
+    if (!db) { store.mode = "local"; loadLocal(); renderSyncNote(); refresh(); return; }
+    store.db = db;
+    store.user = await window.claude.use("user");
+    store.uid = store.user ? await store.user.id() : null;
+    store.canWrite = (store.user ? await store.user.can("data.write") : null) !== false;
+    store.mode = "shared";
+    renderSyncNote();
+    db.collection("visits").onSnapshot((snap) => {
+      visits.clear();
+      snap.docs.forEach((d) => visits.set(d.id, d.data()));
+      refresh();
+    }, () => {
+      $("syncNote").textContent = "Koneksi penyimpanan terputus. Muat ulang halaman untuk menyambung lagi.";
+    });
+  }
+
+  async function saveVisit(id, rec) {
+    if (store.mode === "shared") {
+      const ref = store.db.doc("visits/" + id);
+      if (rec) await ref.set(rec); else await ref.delete();
+      return;
+    }
+    if (rec) visits.set(id, rec); else visits.delete(id);
+    saveLocal();
+    refresh();
+  }
+
+  async function names(ids) {
+    const list = [...new Set(ids.filter(Boolean))];
+    if (!store.user || !list.length) return {};
+    const ps = await store.user.profiles(list);
+    return Object.fromEntries(list.map((id) => [id, ps[id]?.name || ""]));
   }
 
   // ---------- filters ----------
@@ -78,7 +148,7 @@
   makeChips($("fBrands"), BRANDS, state.brands);
   makeChips($("fCool"), COOLERS, state.coolers);
 
-  Object.keys(selects).forEach((id) => $(id).addEventListener("change", () => {
+  Object.keys(selects).concat("fVisit").forEach((id) => $(id).addEventListener("change", () => {
     if (id === "fKota" || id === "fKec") cascade();
     apply();
   }));
@@ -86,6 +156,7 @@
   $("fSearch").addEventListener("input", () => { clearTimeout(t); t = setTimeout(apply, 150); });
   $("btnReset").addEventListener("click", () => {
     $("fSearch").value = "";
+    $("fVisit").value = "";
     Object.keys(selects).forEach((id) => { $(id).value = ""; });
     state.brands.clear(); state.coolers.clear();
     document.querySelectorAll(".chip.on").forEach((c) => c.classList.remove("on"));
@@ -93,19 +164,23 @@
   });
   $("btnFilters").addEventListener("click", () => $("filters").classList.toggle("open"));
 
-  function apply() {
+  function apply(keepView) {
     const q = $("fSearch").value.trim().toLowerCase();
+    const visit = $("fVisit").value;
     const sel = Object.entries(selects).map(([id, key]) => [key, $(id).value]).filter(([, v]) => v);
     filtered = outlets.filter((o) => {
       if (q && !o._search.includes(q)) return false;
+      if (visit && (visit === "sudah") !== isVisited(o)) return false;
       for (const [k, v] of sel) if (o[k] !== v) return false;
       for (const b of state.brands) if (!o._brands.includes(b)) return false;
       for (const c of state.coolers) if (o[c + " Availability"] !== "Ya") return false;
       return true;
     });
-    state.page = 0;
-    renderKpis(); renderMap(); renderTable(); renderSummary();
+    if (!keepView) state.page = 0;
+    renderKpis(); renderMap(keepView); renderTable(); renderSummary();
   }
+  // Dipanggil saat data kunjungan berubah: jangan geser peta atau halaman tabel.
+  function refresh() { apply(true); }
 
   // ---------- KPIs ----------
   function renderKpis() {
@@ -114,39 +189,41 @@
     const avgRev = n ? filtered.reduce((s, o) => s + o._rev, 0) / n : 0;
     const cooler = filtered.filter((o) => COOLERS.some((c) => o[c + " Availability"] === "Ya")).length;
     const kec = new Set(filtered.map((o) => o.Kecamatan)).size;
+    const visited = filtered.filter(isVisited).length;
     $("kpis").innerHTML = [
       ["Jumlah outlet", fmt.format(n), `dari ${fmt.format(outlets.length)} total`],
+      ["Sudah didatangi", fmt.format(visited), n ? `${Math.round((visited / n) * 100)}% · ${fmt.format(n - visited)} belum` : "–"],
       ["Kecamatan", fmt.format(kec), `${new Set(filtered.map((o) => o.Kelurahan)).size} kelurahan`],
       ["Rata-rata omzet/hari", rupiah(avgRev), "Daily Revenue Average"],
       ["Punya pendingin", n ? Math.round((cooler / n) * 100) + "%" : "–", `${fmt.format(cooler)} outlet`],
-      ["Ada Aqua", pct("Aqua") + "%", "Brand presence"],
-      ["Ada Aquviva", pct("Aquviva") + "%", "Brand presence"],
+      ["Ada Aqua / Aquviva", `${pct("Aqua")}% / ${pct("Aquviva")}%`, "Brand presence"],
     ].map(([l, v, h]) => `<div class="kpi"><div class="label">${l}</div><div class="value">${v}</div><div class="hint">${h}</div></div>`).join("");
   }
 
   // ---------- map ----------
-  const map = L.map("map", { preferCanvas: true }).setView([-6.32, 106.84], 11);
+  const map = L.map("map", { preferCanvas: true, maxZoom: 19 }).setView([-6.32, 106.84], 11);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
   const cluster = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false });
   map.addLayer(cluster);
-  const TYPE_COLOR = { Provision: "#0b7a5b", Rombong: "#d97706" };
 
-  function renderMap() {
+  function renderMap(keepView) {
     cluster.clearLayers();
     const markers = filtered.filter((o) => o.latitude && o.longitude).map((o) => {
+      const done = isVisited(o);
       const m = L.circleMarker([o.latitude, o.longitude], {
-        radius: 7, weight: 2, color: "#fff", fillColor: TYPE_COLOR[o["Store Type"]] || "#2f7fd1", fillOpacity: 0.95,
+        radius: 7, weight: 2, color: "#fff", fillColor: done ? COLOR_VISITED : COLOR_PENDING, fillOpacity: 0.95,
       });
       m.bindPopup(`<div class="pop-title">${esc(o["Store Name"] || o.name)}</div>
+        <div><span class="pill ${done ? "pill-done" : "pill-todo"}">${done ? "Sudah didatangi" : "Belum didatangi"}</span></div>
         <div>${esc(o["Store Type"])} · ${esc(o.Kelurahan)}, ${esc(o.Kecamatan)}</div>
         <div>Top seller: <b>${esc(o["Top Seller AMDK"])}</b></div>
         <button class="btn pop-btn" data-open="${o._i}">Lihat detail</button>`);
       return m;
     });
     cluster.addLayers(markers);
-    if (markers.length) map.fitBounds(cluster.getBounds(), { padding: [30, 30], maxZoom: 16 });
+    if (markers.length && !keepView) map.fitBounds(cluster.getBounds(), { padding: [30, 30], maxZoom: 16 });
   }
   map.on("popupopen", (e) => {
     const b = e.popup.getElement().querySelector("[data-open]");
@@ -165,17 +242,25 @@
 
   function renderTable() {
     const k = state.sort, dir = state.asc ? 1 : -1;
-    const rows = [...filtered].sort((a, b) => k === "Daily Revenue Average"
-      ? (a._rev - b._rev) * dir
-      : String(a[k]).localeCompare(String(b[k]), "id") * dir);
+    const rows = [...filtered].sort((a, b) => {
+      if (k === "Daily Revenue Average") return (a._rev - b._rev) * dir;
+      if (k === "_visit") return (isVisited(a) - isVisited(b)) * dir;
+      return String(a[k]).localeCompare(String(b[k]), "id") * dir;
+    });
     const pages = Math.max(1, Math.ceil(rows.length / PAGE));
     state.page = Math.min(Math.max(0, state.page), pages - 1);
     const slice = rows.slice(state.page * PAGE, state.page * PAGE + PAGE);
-    document.querySelector("#tbl tbody").innerHTML = slice.map((o) => `<tr data-i="${o._i}">
+    document.querySelector("#tbl tbody").innerHTML = slice.map((o) => {
+      const v = visits.get(o.id);
+      const done = !!v?.visited;
+      return `<tr data-i="${o._i}">
+      <td><span class="pill ${done ? "pill-done" : "pill-todo"}">${done ? "Sudah" : "Belum"}</span></td>
       <td>${esc(o["Store Name"] || o.name)}</td><td>${esc(o["Store Owner"])}</td><td>${esc(o["Store Type"])}</td>
       <td>${esc(o.Kecamatan)}</td><td>${esc(o.Kelurahan)}</td><td>${esc(o["Top Seller AMDK"])}</td>
-      <td class="num">${o._rev ? fmt.format(o._rev) : "–"}</td><td>${esc(o.created_at.slice(0, 10))}</td></tr>`).join("") ||
-      '<tr><td colspan="8">Tidak ada outlet yang cocok dengan filter.</td></tr>';
+      <td class="num">${o._rev ? fmt.format(o._rev) : "–"}</td>
+      <td class="note-cell" title="${esc(v?.note)}">${esc(v?.note)}</td></tr>`;
+    }).join("") ||
+      '<tr><td colspan="9">Tidak ada outlet yang cocok dengan filter.</td></tr>';
     document.querySelectorAll("th[data-sort]").forEach((th) => {
       th.classList.toggle("sorted", th.dataset.sort === k);
       th.classList.toggle("asc", th.dataset.sort === k && state.asc);
@@ -209,6 +294,7 @@
       return "≥ 5 jt";
     };
     $("charts").innerHTML = [
+      barCard("Sudah didatangi per Kecamatan", countBy(filtered.filter(isVisited), (o) => o.Kecamatan), 15),
       barCard("Outlet per Kecamatan", countBy(filtered, (o) => o.Kecamatan), 15),
       barCard("Brand AMDK yang tersedia", countBy(filtered, (o) => o._brands)),
       barCard("Top Seller AMDK", countBy(filtered, (o) => o["Top Seller AMDK"])),
@@ -228,6 +314,32 @@
     return rows.length ? `<dl class="kv">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl>` : "";
   }
   function section(title, body) { return body ? `<div class="detail-section"><h3>${title}</h3>${body}</div>` : ""; }
+
+  function visitSection(o) {
+    const v = visits.get(o.id);
+    const locked = store.mode === "pending" || !store.canWrite;
+    return `<div class="detail-section visit-box">
+      <h3>Kunjungan</h3>
+      <label class="check"><input type="checkbox" id="visitDone" ${v?.visited ? "checked" : ""} ${locked ? "disabled" : ""}> Sudah didatangi</label>
+      <label class="field"><span>Catatan</span>
+        <textarea id="visitNote" rows="3" placeholder="mis. pemilik tertarik, minta dihubungi minggu depan" ${locked ? "disabled" : ""}>${esc(v?.note)}</textarea>
+      </label>
+      <div class="visit-actions">
+        <button class="btn" id="visitSave" ${locked ? "disabled" : ""}>Simpan</button>
+        <span class="visit-meta" id="visitMeta"></span>
+      </div>
+    </div>`;
+  }
+
+  async function renderVisitMeta(o) {
+    const v = visits.get(o.id);
+    const el = $("visitMeta");
+    if (!el) return;
+    if (!v) { el.textContent = store.mode === "pending" ? "Menghubungkan penyimpanan…" : ""; return; }
+    const who = (await names([v.by]))[v.by];
+    el.textContent = [v.visited && v.visitedAt ? "Didatangi " + fmtDate(v.visitedAt) : "",
+      who ? "oleh " + who : "", v.updatedAt ? "· diperbarui " + fmtDate(v.updatedAt) : ""].filter(Boolean).join(" ");
+  }
 
   function openDetail(i) {
     const o = outlets[i];
@@ -255,6 +367,7 @@
       <div class="detail-head"><h2>${esc(o["Store Name"] || o.name)}</h2>
         <p>${e("Address")}</p>
         <p><a href="${gmaps}" target="_blank" rel="noopener">Buka di Google Maps ↗</a></p></div>
+      ${visitSection(o)}
       ${section("Info toko", kv([
         ["Pemilik", e("Store Owner")], ["Tipe toko", e("Store Type")],
         ["Komunitas retail", esc(o["Retail Community"] + (o["Retail Community Others"] ? " – " + o["Retail Community Others"] : ""))],
@@ -276,6 +389,42 @@
       ${brandRows}
       ${section("Foto", photos ? `<div class="photos">${photos}</div>` : "")}`;
     $("modal").classList.remove("hidden");
+    renderVisitMeta(o);
+
+    $("visitSave").addEventListener("click", async () => {
+      const btn = $("visitSave");
+      const done = $("visitDone").checked;
+      const note = $("visitNote").value.trim();
+      const prev = visits.get(o.id);
+      const now = new Date().toISOString();
+      const rec = done || note ? {
+        visited: done,
+        note,
+        visitedAt: done ? (prev?.visited && prev.visitedAt) || now : "",
+        updatedAt: now,
+        by: store.uid || "",
+      } : null;
+      btn.disabled = true;
+      $("visitMeta").textContent = "Menyimpan…";
+      try {
+        await saveVisit(o.id, rec);
+        if (rec) visits.set(o.id, rec); else visits.delete(o.id);
+        await renderVisitMeta(o);
+        $("visitMeta").textContent = "Tersimpan. " + $("visitMeta").textContent;
+      } catch (err) {
+        if (err?.code === "invalid_argument") {
+          store.canWrite = false;
+          renderSyncNote();
+          $("visitMeta").textContent = "Kamu tidak punya izin mengubah data ini. Minta akses Contributor atau Editor ke pemilik halaman.";
+        } else if (err?.code === "quota_exceeded") {
+          $("visitMeta").textContent = "Penyimpanan penuh. Hapus tanda yang tidak dipakai lalu coba lagi.";
+        } else {
+          $("visitMeta").textContent = "Gagal menyimpan. Periksa koneksi lalu coba lagi.";
+        }
+      } finally {
+        btn.disabled = !store.canWrite;
+      }
+    });
   }
   function closeModal() { $("modal").classList.add("hidden"); }
   $("modalClose").addEventListener("click", closeModal);
@@ -290,17 +439,41 @@
   }));
 
   // ---------- export ----------
-  $("btnExport").addEventListener("click", () => {
-    const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-    const csv = [RAW.cols.map(q).join(","), ...filtered.map((o) => RAW.cols.map((c) => q(o[c])).join(","))].join("\r\n");
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" }));
-    a.download = "outlet_tidak_jual_LM.csv";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  });
+  async function exportExcel() {
+    const btn = $("btnExport");
+    btn.disabled = true;
+    try {
+      const who = await names(filtered.map((o) => visits.get(o.id)?.by));
+      const extra = ["Status Kunjungan", "Tanggal Kunjungan", "Dikunjungi oleh", "Catatan", "Terakhir diperbarui"];
+      const aoa = [extra.concat(RAW.cols), ...filtered.map((o) => {
+        const v = visits.get(o.id);
+        return [v?.visited ? "Sudah didatangi" : "Belum didatangi", fmtDate(v?.visitedAt), who[v?.by] || "",
+          v?.note || "", fmtDate(v?.updatedAt)].concat(RAW.cols.map((c) => o[c]));
+      })];
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(aoa);
+      ws["!autofilter"] = { ref: ws["!ref"] };
+      XLSX.utils.book_append_sheet(wb, ws, "Outlet");
+      const buf = XLSX.write(wb, { type: "array", bookType: "xlsx" });
+      const filename = `outlet_tidak_jual_LM_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const downloads = window.claude?.use ? await window.claude.use("downloads") : null;
+      if (downloads) {
+        await downloads.save({ filename, data: new Blob([buf]) }).catch(() => {});
+      } else {
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(new Blob([buf], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+      }
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  $("btnExport").addEventListener("click", exportExcel);
 
   const dates = outlets.map((o) => o.created_at).filter(Boolean).sort();
   $("subtitle").textContent = `${fmt.format(outlets.length)} outlet hasil survei · ${dates[0].slice(0, 10)} s/d ${dates[dates.length - 1].slice(0, 10)}`;
+  initStore();
   apply();
 })();
