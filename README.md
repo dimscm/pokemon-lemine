@@ -1,6 +1,6 @@
 # Outlet Tidak Jual LM
 
-Web statis untuk menjelajahi data survei 2.020 outlet (Kota Depok & Jakarta Timur) yang tidak menjual LM.
+Web statis untuk menjelajahi data survei 3.022 outlet (Jakarta Timur, Kota Depok, dan Kota Bekasi) yang tidak menjual LM.
 
 Fitur:
 - **Peta** outlet (cluster, warna per tipe toko) dengan popup & detail
@@ -27,7 +27,8 @@ pip install openpyxl
 python3 scripts/convert.py Data_Outlet_tidak_jual_LM.xlsx
 ```
 
-Skrip membaca `Sheet1` dan menulis ulang `data/outlets.js`.
+Skrip membaca `Sheet1` (data lengkap), menambahkan outlet dari `Sheet2` yang belum ada di Sheet1
+(mis. Kota Bekasi, kolomnya lebih sedikit), lalu menulis ulang `data/outlets.js`.
 
 ## Tanda kunjungan bersama (Google Sheet)
 
