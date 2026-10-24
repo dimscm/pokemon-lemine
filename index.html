@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outlet Tidak Jual LM</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <div>
+    <h1>Outlet Tidak Jual LM</h1>
+    <p class="sub" id="subtitle">Memuat data…</p>
+  </div>
+  <div class="top-actions">
+    <button id="btnExport" class="btn">Unduh CSV</button>
+    <button id="btnFilters" class="btn btn-ghost only-mobile">Filter</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="filters" id="filters">
+    <div class="filters-head">
+      <h2>Filter</h2>
+      <button id="btnReset" class="link">Reset</button>
+    </div>
+    <label class="field">
+      <span>Cari nama / pemilik / alamat</span>
+      <input type="search" id="fSearch" placeholder="mis. warung, Pondok Bambu">
+    </label>
+    <label class="field"><span>Kota</span><select id="fKota"></select></label>
+    <label class="field"><span>Kecamatan</span><select id="fKec"></select></label>
+    <label class="field"><span>Kelurahan</span><select id="fKel"></select></label>
+    <label class="field"><span>Tipe Toko</span><select id="fType"></select></label>
+    <label class="field"><span>Akses Jalan</span><select id="fAccess"></select></label>
+    <label class="field"><span>Komunitas Retail</span><select id="fComm"></select></label>
+    <label class="field"><span>Top Seller AMDK</span><select id="fTop"></select></label>
+    <fieldset class="field">
+      <legend>Brand AMDK yang ada</legend>
+      <div id="fBrands" class="chips"></div>
+    </fieldset>
+    <fieldset class="field">
+      <legend>Fasilitas pendingin</legend>
+      <div id="fCool" class="chips"></div>
+    </fieldset>
+  </aside>
+
+  <main class="content">
+    <section class="kpis" id="kpis"></section>
+
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="map">Peta</button>
+      <button class="tab" data-tab="table">Tabel</button>
+      <button class="tab" data-tab="summary">Ringkasan</button>
+    </nav>
+
+    <section class="panel" id="tab-map">
+      <div id="map"></div>
+    </section>
+
+    <section class="panel hidden" id="tab-table">
+      <div class="table-wrap">
+        <table id="tbl">
+          <thead><tr>
+            <th data-sort="Store Name">Nama Toko</th>
+            <th data-sort="Store Owner">Pemilik</th>
+            <th data-sort="Store Type">Tipe</th>
+            <th data-sort="Kecamatan">Kecamatan</th>
+            <th data-sort="Kelurahan">Kelurahan</th>
+            <th data-sort="Top Seller AMDK">Top Seller</th>
+            <th data-sort="Daily Revenue Average" class="num">Omzet/Hari</th>
+            <th data-sort="created_at">Disurvei</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="pager">
+        <button class="btn btn-ghost" id="prev">‹ Sebelumnya</button>
+        <span id="pageInfo"></span>
+        <button class="btn btn-ghost" id="next">Berikutnya ›</button>
+      </div>
+    </section>
+
+    <section class="panel hidden" id="tab-summary">
+      <div class="charts" id="charts"></div>
+    </section>
+  </main>
+</div>
+
+<div class="modal hidden" id="modal" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <button class="modal-close" id="modalClose" aria-label="Tutup">×</button>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script src="data/outlets.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
