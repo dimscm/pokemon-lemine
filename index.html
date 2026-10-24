@@ -43,6 +43,15 @@
         <option value="sudah">Sudah didatangi</option>
       </select>
     </label>
+    <label class="field"><span>Jarak dari lokasimu</span>
+      <select id="fRadius" disabled>
+        <option value="">Semua jarak</option>
+        <option value="500">≤ 500 m</option>
+        <option value="1000">≤ 1 km</option>
+        <option value="2000">≤ 2 km</option>
+        <option value="5000">≤ 5 km</option>
+      </select>
+    </label>
     <label class="field"><span>Kota</span><select id="fKota"></select></label>
     <label class="field"><span>Kecamatan</span><select id="fKec"></select></label>
     <label class="field"><span>Kelurahan</span><select id="fKel"></select></label>
@@ -74,8 +83,21 @@
       <div class="legend">
         <span><i class="dot dot-todo"></i>Belum didatangi</span>
         <span><i class="dot dot-done"></i>Sudah didatangi</span>
+        <span><i class="dot dot-me"></i>Lokasi kamu</span>
         <span class="muted">Angka di lingkaran = jumlah outlet di area itu</span>
       </div>
+      <section class="nearby card" id="nearby">
+        <div class="nearby-head">
+          <h3>Outlet terdekat</h3>
+          <div class="nearby-actions">
+            <button class="btn" id="btnLocate" type="button">Gunakan lokasi saya</button>
+            <button class="btn btn-ghost" id="btnPick" type="button">Pilih titik di peta</button>
+          </div>
+        </div>
+        <p class="loc-note" id="locNote">Aktifkan lokasi untuk melihat outlet terdekat dari posisimu. Daftar mengikuti filter yang aktif.</p>
+        <ol class="nearby-list" id="nearbyList"></ol>
+        <button class="link" id="nearbyMore" type="button" hidden>Tampilkan 10 lagi</button>
+      </section>
     </section>
 
     <section class="panel hidden" id="tab-table">
@@ -91,6 +113,7 @@
             <th data-sort="Top Seller AMDK">Top Seller</th>
             <th data-sort="Daily Revenue Average" class="num">Omzet/Hari</th>
             <th>Catatan</th>
+            <th data-sort="_dist" class="num dist-col" hidden>Jarak</th>
           </tr></thead>
           <tbody></tbody>
         </table>

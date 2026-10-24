@@ -219,7 +219,7 @@
   makeChips($("fBrands"), BRANDS, state.brands);
   makeChips($("fCool"), COOLERS, state.coolers);
 
-  Object.keys(selects).concat("fVisit").forEach((id) => $(id).addEventListener("change", () => {
+  Object.keys(selects).concat("fVisit", "fRadius").forEach((id) => $(id).addEventListener("change", () => {
     if (id === "fKota" || id === "fKec") cascade();
     apply();
   }));
@@ -228,6 +228,7 @@
   $("btnReset").addEventListener("click", () => {
     $("fSearch").value = "";
     $("fVisit").value = "";
+    $("fRadius").value = "";
     Object.keys(selects).forEach((id) => { $(id).value = ""; });
     state.brands.clear(); state.coolers.clear();
     document.querySelectorAll(".chip.on").forEach((c) => c.classList.remove("on"));
@@ -238,17 +239,19 @@
   function apply(keepView) {
     const q = $("fSearch").value.trim().toLowerCase();
     const visit = $("fVisit").value;
+    const radius = me.lat != null ? +$("fRadius").value : 0;
     const sel = Object.entries(selects).map(([id, key]) => [key, $(id).value]).filter(([, v]) => v);
     filtered = outlets.filter((o) => {
       if (q && !o._search.includes(q)) return false;
       if (visit && (visit === "sudah") !== isVisited(o)) return false;
+      if (radius && o._dist > radius) return false;
       for (const [k, v] of sel) if (o[k] !== v) return false;
       for (const b of state.brands) if (!o._brands.includes(b)) return false;
       for (const c of state.coolers) if (o[c + " Availability"] !== "Ya") return false;
       return true;
     });
     if (!keepView) state.page = 0;
-    renderKpis(); renderMap(keepView); renderTable(); renderSummary();
+    renderKpis(); renderMap(keepView); renderTable(); renderSummary(); renderNearby();
   }
   // Dipanggil saat data kunjungan berubah: jangan geser peta atau halaman tabel.
   function refresh() { apply(true); }
@@ -296,6 +299,112 @@
     cluster.addLayers(markers);
     if (markers.length && !keepView) map.fitBounds(cluster.getBounds(), { padding: [30, 30], maxZoom: 16 });
   }
+  // ---------- lokasi saya ----------
+  const me = { lat: null, lng: null, acc: null, watch: null, picking: false, appliedAt: null, shown: 10 };
+  const meLayer = L.layerGroup().addTo(map);
+
+  function distM(lat1, lng1, lat2, lng2) {
+    const rad = Math.PI / 180, dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) ** 2;
+    return 6371000 * 2 * Math.asin(Math.sqrt(a));
+  }
+  function fmtDist(m) {
+    if (m < 1000) return Math.round(m / 10) * 10 + " m";
+    return (m / 1000).toLocaleString("id-ID", { maximumFractionDigits: m < 10000 ? 1 : 0 }) + " km";
+  }
+  function setLocNote(text) { $("locNote").textContent = text; }
+
+  function setMe(lat, lng, acc, recenter, manual) {
+    const first = me.lat == null;
+    const moved = me.appliedAt ? distM(me.appliedAt[0], me.appliedAt[1], lat, lng) : Infinity;
+    Object.assign(me, { lat, lng, acc });
+    meLayer.clearLayers();
+    if (acc) L.circle([lat, lng], { radius: acc, color: "#2563eb", weight: 1, fillOpacity: 0.08 }).addTo(meLayer);
+    L.circleMarker([lat, lng], { radius: 8, weight: 3, color: "#fff", fillColor: "#2563eb", fillOpacity: 1 })
+      .bindTooltip(manual ? "Titik yang kamu pilih" : "Lokasi kamu").addTo(meLayer);
+    $("fRadius").disabled = false;
+    setLocNote(manual ? "Memakai titik yang kamu pilih di peta."
+      : `Lokasi ditemukan${acc ? ` (akurasi ± ${fmtDist(acc)})` : ""}. Daftar diperbarui saat kamu bergerak.`);
+    // Hitung ulang hanya bila bergeser cukup jauh, supaya peta tidak digambar ulang terus-menerus.
+    if (moved > 30) {
+      outlets.forEach((o) => { o._dist = o.latitude && o.longitude ? distM(lat, lng, o.latitude, o.longitude) : null; });
+      me.appliedAt = [lat, lng];
+      if (first) { state.sort = "_dist"; state.asc = true; }
+      apply(true);
+    }
+    if (recenter) map.setView([lat, lng], Math.max(map.getZoom(), 16));
+  }
+
+  function startPick(reason) {
+    me.picking = true;
+    $("map").classList.add("picking");
+    setLocNote((reason ? reason + " " : "") + "Ketuk peta di posisi kamu untuk memakai titik itu.");
+  }
+  map.on("click", (e) => {
+    if (!me.picking) return;
+    me.picking = false;
+    $("map").classList.remove("picking");
+    if (me.watch != null) { navigator.geolocation.clearWatch(me.watch); me.watch = null; }
+    setMe(e.latlng.lat, e.latlng.lng, null, false, true);
+  });
+
+  function locate() {
+    if (!navigator.geolocation) { startPick("Browser ini tidak bisa membaca lokasi."); return; }
+    setLocNote("Mencari lokasi…");
+    navigator.geolocation.getCurrentPosition((pos) => {
+      setMe(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy, true);
+      if (me.watch == null) {
+        me.watch = navigator.geolocation.watchPosition(
+          (p) => setMe(p.coords.latitude, p.coords.longitude, p.coords.accuracy, false),
+          () => {}, { enableHighAccuracy: true, maximumAge: 15000 });
+      }
+    }, (err) => {
+      startPick(err.code === 1 ? "Izin lokasi ditolak atau tidak tersedia di halaman ini."
+        : "Lokasi belum ditemukan. Pastikan GPS menyala.");
+    }, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+  }
+  $("btnLocate").addEventListener("click", locate);
+  $("btnPick").addEventListener("click", () => startPick(""));
+
+  const LocateControl = L.Control.extend({
+    options: { position: "topleft" },
+    onAdd() {
+      const b = L.DomUtil.create("button", "locate-btn");
+      b.type = "button";
+      b.title = "Lokasi saya";
+      b.setAttribute("aria-label", "Lokasi saya");
+      b.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><circle cx="12" cy="12" r="4" fill="currentColor"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3" stroke="currentColor" stroke-width="2" fill="none"/><circle cx="12" cy="12" r="7" stroke="currentColor" stroke-width="2" fill="none"/></svg>';
+      L.DomEvent.disableClickPropagation(b);
+      L.DomEvent.on(b, "click", locate);
+      return b;
+    },
+  });
+  map.addControl(new LocateControl());
+
+  function renderNearby() {
+    const list = $("nearbyList");
+    if (me.lat == null) { list.innerHTML = ""; $("nearbyMore").hidden = true; return; }
+    const near = filtered.filter((o) => o._dist != null).sort((a, b) => a._dist - b._dist);
+    list.innerHTML = near.slice(0, me.shown).map((o) => {
+      const done = isVisited(o);
+      return `<li class="near-item">
+        <span class="near-dist">${fmtDist(o._dist)}</span>
+        <button type="button" class="near-main" data-open="${o._i}">
+          <b>${esc(o["Store Name"] || o.name)}</b>
+          <small>${esc(o.Kelurahan)} · ${esc(o["Store Type"])} · Top seller ${esc(o["Top Seller AMDK"])}</small>
+        </button>
+        <span class="pill ${done ? "pill-done" : "pill-todo"}">${done ? "Sudah" : "Belum"}</span>
+        <a class="near-route" href="https://www.google.com/maps/dir/?api=1&destination=${o.latitude},${o.longitude}" target="_blank" rel="noopener">Rute ↗</a>
+      </li>`;
+    }).join("") || '<li class="near-empty">Tidak ada outlet yang cocok dengan filter di sekitar lokasi ini.</li>';
+    $("nearbyMore").hidden = near.length <= me.shown;
+  }
+  $("nearbyList").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-open]");
+    if (b) openDetail(+b.dataset.open);
+  });
+  $("nearbyMore").addEventListener("click", () => { me.shown += 10; renderNearby(); });
+
   map.on("popupopen", (e) => {
     const b = e.popup.getElement().querySelector("[data-open]");
     if (b) b.addEventListener("click", () => openDetail(+b.dataset.open));
@@ -316,6 +425,7 @@
     const rows = [...filtered].sort((a, b) => {
       if (k === "Daily Revenue Average") return (a._rev - b._rev) * dir;
       if (k === "_visit") return (isVisited(a) - isVisited(b)) * dir;
+      if (k === "_dist") return ((a._dist ?? Infinity) - (b._dist ?? Infinity)) * dir;
       return String(a[k]).localeCompare(String(b[k]), "id") * dir;
     });
     const pages = Math.max(1, Math.ceil(rows.length / PAGE));
@@ -329,13 +439,15 @@
       <td>${esc(o["Store Name"] || o.name)}</td><td>${esc(o["Store Owner"])}</td><td>${esc(o["Store Type"])}</td>
       <td>${esc(o.Kecamatan)}</td><td>${esc(o.Kelurahan)}</td><td>${esc(o["Top Seller AMDK"])}</td>
       <td class="num">${o._rev ? fmt.format(o._rev) : "–"}</td>
-      <td class="note-cell" title="${esc(v?.note)}">${esc(v?.note)}</td></tr>`;
+      <td class="note-cell" title="${esc(v?.note)}">${esc(v?.note)}</td>
+      <td class="num dist-col"${me.lat == null ? " hidden" : ""}>${o._dist != null ? fmtDist(o._dist) : ""}</td></tr>`;
     }).join("") ||
-      '<tr><td colspan="9">Tidak ada outlet yang cocok dengan filter.</td></tr>';
+      '<tr><td colspan="10">Tidak ada outlet yang cocok dengan filter.</td></tr>';
     document.querySelectorAll("th[data-sort]").forEach((th) => {
       th.classList.toggle("sorted", th.dataset.sort === k);
       th.classList.toggle("asc", th.dataset.sort === k && state.asc);
     });
+    document.querySelectorAll("th.dist-col").forEach((th) => { th.hidden = me.lat == null; });
     $("pageInfo").textContent = `Halaman ${state.page + 1} dari ${pages} · ${fmt.format(rows.length)} outlet`;
     $("prev").disabled = state.page === 0;
     $("next").disabled = state.page >= pages - 1;
@@ -440,6 +552,7 @@
     $("modalBody").innerHTML = `
       <div class="detail-head"><h2>${esc(o["Store Name"] || o.name)}</h2>
         <p>${e("Address")}</p>
+        ${o._dist != null ? `<p><b>${fmtDist(o._dist)}</b> dari lokasimu</p>` : ""}
         <p><a href="${gmaps}" target="_blank" rel="noopener">Buka di Google Maps ↗</a></p></div>
       ${visitSection(o)}
       ${section("Info toko", kv([
