@@ -13,6 +13,8 @@ import sys
 
 import openpyxl
 
+from stamp import stamp
+
 src = sys.argv[1] if len(sys.argv) > 1 else "Data_Outlet_tidak_jual_LM.xlsx"
 wb = openpyxl.load_workbook(src, read_only=True, data_only=True)
 skip = {"Metric Data", "description"}
@@ -64,3 +66,4 @@ with open("data/outlets.js", "w", encoding="utf-8") as f:
     json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
     f.write(";\n")
 print(f"{len(out)} outlet ditulis ke data/outlets.js ({len(main)} dari Sheet1, {extra} tambahan dari Sheet2)")
+stamp()
