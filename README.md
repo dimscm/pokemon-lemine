@@ -30,6 +30,9 @@ python3 scripts/convert.py Data_Outlet_tidak_jual_LM.xlsx
 Skrip membaca `Sheet1` (data lengkap), menambahkan outlet dari `Sheet2` yang belum ada di Sheet1
 (mis. Kota Bekasi, kolomnya lebih sedikit), lalu menulis ulang `data/outlets.js`.
 
+Setiap kali `app.js`, `style.css`, `config.js`, atau data berubah, jalankan `python3 scripts/stamp.py`
+(convert.py menjalankannya otomatis) supaya browser memuat versi terbaru, bukan file lama dari cache.
+
 ## Tanda kunjungan bersama (Google Sheet)
 
 Tanpa pengaturan, tanda kunjungan hanya tersimpan di browser masing-masing. Supaya seluruh tim
