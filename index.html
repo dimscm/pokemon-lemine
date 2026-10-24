@@ -15,6 +15,10 @@
     <h1>Outlet Tidak Jual LM</h1>
     <p class="sub" id="subtitle">Memuat data…</p>
     <p class="sub sync" id="syncNote"></p>
+    <form class="key-form" id="keyForm" hidden>
+      <input type="password" id="teamKey" placeholder="Kode tim" autocomplete="off" aria-label="Kode tim">
+      <button class="btn" type="submit">Masuk</button>
+    </form>
   </div>
   <div class="top-actions">
     <button id="btnExport" class="btn">Unduh Excel</button>
@@ -114,6 +118,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="config.js"></script>
 <script src="data/outlets.js"></script>
 <script src="app.js"></script>
 </body>

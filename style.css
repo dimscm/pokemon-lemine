@@ -31,6 +31,7 @@
   }
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { margin: 0; }
 body {
   background: var(--bg);
@@ -146,6 +147,10 @@ dl.kv dd { margin: 0; word-break: break-word; }
 .visit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
 .visit-meta { color: var(--muted); font-size: 12px; }
 .btn:focus-visible, .chip:focus-visible, .tab:focus-visible, textarea:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.key-form { display: flex; gap: 6px; margin-top: 6px; }
+.key-form input { padding: 6px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; width: 160px; }
+.visit-box input[type="text"] { width: 100%; padding: 7px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font: inherit; }
 
 .only-mobile { display: none; }
 @media (max-width: 860px) {

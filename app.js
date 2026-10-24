@@ -53,11 +53,53 @@
   }
 
   // ---------- visit store ----------
-  // Di claude.ai tanda kunjungan disimpan bersama lewat `db`; di tempat lain (mis. GitHub Pages)
-  // disimpan di browser ini saja.
+  // Di claude.ai tanda kunjungan disimpan bersama lewat `db`; di tempat lain lewat Google Sheet
+  // tim (window.VISITS_API, lihat apps-script/Code.gs), atau di browser ini saja bila belum diatur.
+  const API = window.VISITS_API || "";
+  const API_KEY_LS = "outlet-lm-team-key";
+  const NAME_LS = "outlet-lm-name";
   const visits = new Map();
-  const store = { mode: window.claude?.use ? "pending" : "local", db: null, user: null, uid: null, canWrite: true };
+  const store = {
+    mode: window.claude?.use ? "pending" : API ? "api" : "local",
+    db: null, user: null, uid: null, canWrite: true, needKey: false, loadedAt: null,
+  };
   const isVisited = (o) => !!visits.get(o.id)?.visited;
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* abaikan */ } }
+
+  async function apiLoad() {
+    const res = await fetch(API + "?key=" + encodeURIComponent(lsGet(API_KEY_LS)));
+    const j = await res.json();
+    if (!j.ok) {
+      store.needKey = j.error === "kode";
+      renderSyncNote();
+      throw { code: j.error };
+    }
+    store.needKey = false;
+    store.loadedAt = new Date();
+    visits.clear();
+    j.visits.forEach((v) => visits.set(v.id, v));
+    renderSyncNote();
+    refresh();
+  }
+
+  async function apiSave(o, rec) {
+    const body = Object.assign({
+      key: lsGet(API_KEY_LS), id: o.id, nama: o["Store Name"] || o.name,
+      kecamatan: o.Kecamatan, kelurahan: o.Kelurahan, remove: !rec,
+    }, rec || {});
+    const res = await fetch(API, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(body),
+    });
+    const j = await res.json();
+    if (!j.ok) {
+      if (j.error === "kode") { store.needKey = true; renderSyncNote(); }
+      throw { code: j.error === "kode" ? "kode" : "api" };
+    }
+  }
 
   function loadLocal() {
     try {
@@ -72,12 +114,32 @@
       pending: "Menghubungkan penyimpanan…",
       shared: store.canWrite ? "Tanda kunjungan tersimpan bersama untuk semua yang membuka halaman ini" : "Kamu hanya bisa melihat tanda kunjungan",
       local: "Tanda kunjungan tersimpan di browser ini saja",
+      api: store.needKey ? "Masukkan kode tim untuk melihat dan menandai kunjungan"
+        : store.loadedAt ? "Tanda kunjungan tersimpan di Google Sheet tim · dimuat " +
+          store.loadedAt.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })
+        : "Memuat tanda kunjungan dari Google Sheet…",
     }[store.mode];
     $("syncNote").textContent = text;
+    $("keyForm").hidden = !store.needKey;
   }
+
+  $("keyForm").addEventListener("submit", (e) => {
+    e.preventDefault();
+    lsSet(API_KEY_LS, $("teamKey").value.trim());
+    apiLoad().catch(() => {});
+  });
 
   async function initStore() {
     if (store.mode === "local") { loadLocal(); renderSyncNote(); return; }
+    if (store.mode === "api") {
+      renderSyncNote();
+      const load = () => apiLoad().catch((err) => {
+        if (err?.code !== "kode") $("syncNote").textContent = "Gagal memuat dari Google Sheet. Mencoba lagi sebentar lagi…";
+      });
+      load();
+      setInterval(() => { if (!document.hidden) load(); }, 30000);
+      return;
+    }
     renderSyncNote();
     const db = await window.claude.use("db");
     if (!db) { store.mode = "local"; loadLocal(); renderSyncNote(); refresh(); return; }
@@ -96,7 +158,14 @@
     });
   }
 
-  async function saveVisit(id, rec) {
+  async function saveVisit(o, rec) {
+    const id = o.id;
+    if (store.mode === "api") {
+      await apiSave(o, rec);
+      if (rec) visits.set(id, rec); else visits.delete(id);
+      refresh();
+      return;
+    }
     if (store.mode === "shared") {
       const ref = store.db.doc("visits/" + id);
       if (rec) await ref.set(rec); else await ref.delete();
@@ -109,6 +178,8 @@
 
   async function names(ids) {
     const list = [...new Set(ids.filter(Boolean))];
+    // Di Google Sheet, `by` sudah berupa nama yang diketik petugas.
+    if (store.mode === "api") return Object.fromEntries(list.map((n) => [n, n]));
     if (!store.user || !list.length) return {};
     const ps = await store.user.profiles(list);
     return Object.fromEntries(list.map((id) => [id, ps[id]?.name || ""]));
@@ -317,13 +388,16 @@
 
   function visitSection(o) {
     const v = visits.get(o.id);
-    const locked = store.mode === "pending" || !store.canWrite;
+    const locked = store.mode === "pending" || !store.canWrite || store.needKey;
     return `<div class="detail-section visit-box">
       <h3>Kunjungan</h3>
       <label class="check"><input type="checkbox" id="visitDone" ${v?.visited ? "checked" : ""} ${locked ? "disabled" : ""}> Sudah didatangi</label>
       <label class="field"><span>Catatan</span>
         <textarea id="visitNote" rows="3" placeholder="mis. pemilik tertarik, minta dihubungi minggu depan" ${locked ? "disabled" : ""}>${esc(v?.note)}</textarea>
       </label>
+      ${store.mode === "api" ? `<label class="field"><span>Nama kamu</span>
+        <input type="text" id="visitBy" value="${esc(lsGet(NAME_LS))}" placeholder="mis. Dimas" ${locked ? "disabled" : ""}>
+      </label>` : ""}
       <div class="visit-actions">
         <button class="btn" id="visitSave" ${locked ? "disabled" : ""}>Simpan</button>
         <span class="visit-meta" id="visitMeta"></span>
@@ -397,17 +471,23 @@
       const note = $("visitNote").value.trim();
       const prev = visits.get(o.id);
       const now = new Date().toISOString();
+      let by = store.uid || "";
+      if (store.mode === "api") {
+        by = $("visitBy").value.trim();
+        if (!by) { $("visitMeta").textContent = "Isi nama kamu dulu supaya tim tahu siapa yang datang."; $("visitBy").focus(); return; }
+        lsSet(NAME_LS, by);
+      }
       const rec = done || note ? {
         visited: done,
         note,
         visitedAt: done ? (prev?.visited && prev.visitedAt) || now : "",
         updatedAt: now,
-        by: store.uid || "",
+        by,
       } : null;
       btn.disabled = true;
       $("visitMeta").textContent = "Menyimpan…";
       try {
-        await saveVisit(o.id, rec);
+        await saveVisit(o, rec);
         if (rec) visits.set(o.id, rec); else visits.delete(o.id);
         await renderVisitMeta(o);
         $("visitMeta").textContent = "Tersimpan. " + $("visitMeta").textContent;
@@ -416,6 +496,8 @@
           store.canWrite = false;
           renderSyncNote();
           $("visitMeta").textContent = "Kamu tidak punya izin mengubah data ini. Minta akses Contributor atau Editor ke pemilik halaman.";
+        } else if (err?.code === "kode") {
+          $("visitMeta").textContent = "Kode tim salah atau belum diisi. Masukkan kode tim di bagian atas halaman.";
         } else if (err?.code === "quota_exceeded") {
           $("visitMeta").textContent = "Penyimpanan penuh. Hapus tanda yang tidak dipakai lalu coba lagi.";
         } else {
