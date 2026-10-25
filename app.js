@@ -554,6 +554,8 @@
         <p>${e("Address")}</p>
         ${o._dist != null ? `<p><b>${fmtDist(o._dist)}</b> dari lokasimu</p>` : ""}
         <p><a href="${gmaps}" target="_blank" rel="noopener">Buka di Google Maps ↗</a></p></div>
+      ${section("Foto", photos ? `<div class="photos">${photos}</div>`
+        : `<p class="no-photo">Tidak ada foto untuk outlet ini.${o.id.startsWith("s2-") ? " Data survei Kota Bekasi tidak menyertakan foto." : ""}</p>`)}
       ${visitSection(o)}
       ${section("Info toko", kv([
         ["Pemilik", e("Store Owner")], ["Tipe toko", e("Store Type")],
@@ -574,8 +576,14 @@
       ${section("Fasilitas pendingin", kv(coolers))}
       ${section("AMDK", kv([["Brand yang ada", e("Brand Presence AMDK")], ["Top seller", e("Top Seller AMDK")]]))}
       ${brandRows}
-      ${section("Foto", photos ? `<div class="photos">${photos}</div>` : "")}`;
+`;
     $("modal").classList.remove("hidden");
+    $("modalBody").querySelectorAll(".photos img").forEach((img) => img.addEventListener("error", () => {
+      const fail = document.createElement("span");
+      fail.className = "photo-fail";
+      fail.textContent = "Foto tidak bisa dimuat. Ketuk untuk membuka langsung.";
+      img.replaceWith(fail);
+    }, { once: true }));
     renderVisitMeta(o);
 
     $("visitSave").addEventListener("click", async () => {

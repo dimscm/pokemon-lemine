@@ -124,7 +124,9 @@ tbody tr:hover { background: var(--accent-soft); }
 dl.kv { display: grid; grid-template-columns: 220px 1fr; gap: 4px 12px; margin: 0; }
 dl.kv dt { color: var(--muted); }
 dl.kv dd { margin: 0; word-break: break-word; }
-.photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.photos { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 180px); gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.no-photo { color: var(--muted); margin: 0; }
+.photo-fail { display: grid; place-items: center; height: 130px; padding: 8px; border-radius: 8px; border: 1px dashed var(--border); background: var(--bg); color: var(--muted); font-size: 12px; text-align: center; }
 .photos figure { margin: 0; }
 .photos img { width: 100%; height: 130px; object-fit: cover; border-radius: 8px; background: var(--bg); display: block; }
 .photos figcaption { font-size: 11px; color: var(--muted); margin-top: 2px; }
