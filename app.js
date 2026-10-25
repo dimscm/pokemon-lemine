@@ -78,6 +78,9 @@
     }
     store.needKey = false;
     store.loadedAt = new Date();
+    const sig = JSON.stringify(j.visits);
+    if (sig === store.lastSig) { renderSyncNote(); return; }
+    store.lastSig = sig;
     visits.clear();
     j.visits.forEach((v) => visits.set(v.id, v));
     renderSyncNote();
@@ -234,7 +237,19 @@
     document.querySelectorAll(".chip.on").forEach((c) => c.classList.remove("on"));
     cascade(); apply();
   });
-  $("btnFilters").addEventListener("click", () => $("filters").classList.toggle("open"));
+  function setFiltersOpen(open) {
+    $("filters").classList.toggle("open", open);
+    document.body.classList.toggle("no-scroll", open || !$("modal").classList.contains("hidden"));
+  }
+  $("btnFilters").addEventListener("click", () => setFiltersOpen(!$("filters").classList.contains("open")));
+  $("btnFiltersClose").addEventListener("click", () => setFiltersOpen(false));
+  $("btnApply").addEventListener("click", () => { setFiltersOpen(false); window.scrollTo(0, 0); });
+
+  function activeFilterCount() {
+    return [$("fSearch").value.trim(), $("fVisit").value, $("fRadius").value]
+      .concat(Object.keys(selects).map((id) => $(id).value)).filter(Boolean).length
+      + state.brands.size + state.coolers.size;
+  }
 
   function apply(keepView) {
     const q = $("fSearch").value.trim().toLowerCase();
@@ -251,8 +266,16 @@
       return true;
     });
     if (!keepView) state.page = 0;
-    renderKpis(); renderMap(keepView); renderTable(); renderSummary(); renderNearby();
+    renderKpis(); renderMap(keepView); renderTable(); renderNearby();
+    // Ringkasan cukup digambar saat tabnya dibuka.
+    if (activeTab === "summary") renderSummary(); else summaryDirty = true;
+    const n = activeFilterCount();
+    $("filterCount").textContent = n;
+    $("filterCount").hidden = !n;
+    $("btnApply").textContent = `Lihat ${fmt.format(filtered.length)} outlet`;
   }
+  let activeTab = "map";
+  let summaryDirty = true;
   // Dipanggil saat data kunjungan berubah: jangan geser peta atau halaman tabel.
   function refresh() { apply(true); }
 
@@ -276,28 +299,55 @@
 
   // ---------- map ----------
   const map = L.map("map", { preferCanvas: true, maxZoom: 19 }).setView([-6.32, 106.84], 11);
+  // Toleransi sentuh lebih lebar supaya titik kecil mudah diketuk di HP.
+  const renderer = L.canvas({ tolerance: 10 });
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
   const cluster = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false });
   map.addLayer(cluster);
 
+  const markers = new Map();
+  let shownKey = "";
+
+  function popupHtml(o) {
+    const done = isVisited(o);
+    return `<div class="pop-title">${esc(o["Store Name"] || o.name)}</div>
+      <div><span class="pill ${done ? "pill-done" : "pill-todo"}">${done ? "Sudah didatangi" : "Belum didatangi"}</span></div>
+      <div>${esc(o["Store Type"])} · ${esc(o.Kelurahan)}, ${esc(o.Kecamatan)}</div>
+      <div>Top seller: <b>${esc(o["Top Seller AMDK"])}</b></div>
+      ${o._dist != null ? `<div>${fmtDist(o._dist)} dari lokasimu</div>` : ""}
+      <button class="btn pop-btn" data-open="${o._i}">Lihat detail</button>`;
+  }
+
+  function markerFor(o) {
+    let m = markers.get(o._i);
+    if (!m) {
+      m = L.circleMarker([o.latitude, o.longitude], { renderer, radius: 8, weight: 2, color: "#fff", fillOpacity: 0.95 });
+      m.bindPopup(() => popupHtml(o));
+      markers.set(o._i, m);
+    }
+    const fill = isVisited(o) ? COLOR_VISITED : COLOR_PENDING;
+    if (m.options.fillColor !== fill) m.setStyle({ fillColor: fill });
+    return m;
+  }
+
   function renderMap(keepView) {
-    cluster.clearLayers();
-    const markers = filtered.filter((o) => o.latitude && o.longitude).map((o) => {
-      const done = isVisited(o);
-      const m = L.circleMarker([o.latitude, o.longitude], {
-        radius: 7, weight: 2, color: "#fff", fillColor: done ? COLOR_VISITED : COLOR_PENDING, fillOpacity: 0.95,
-      });
-      m.bindPopup(`<div class="pop-title">${esc(o["Store Name"] || o.name)}</div>
-        <div><span class="pill ${done ? "pill-done" : "pill-todo"}">${done ? "Sudah didatangi" : "Belum didatangi"}</span></div>
-        <div>${esc(o["Store Type"])} · ${esc(o.Kelurahan)}, ${esc(o.Kecamatan)}</div>
-        <div>Top seller: <b>${esc(o["Top Seller AMDK"])}</b></div>
-        <button class="btn pop-btn" data-open="${o._i}">Lihat detail</button>`);
-      return m;
-    });
-    cluster.addLayers(markers);
-    if (markers.length && !keepView) map.fitBounds(cluster.getBounds(), { padding: [30, 30], maxZoom: 16 });
+    const list = filtered.filter((o) => o.latitude && o.longitude);
+    const key = list.map((o) => o._i).join(",");
+    const ms = list.map(markerFor);
+    // Isi peta hanya dibangun ulang bila daftar outletnya berubah; popup yang sedang terbuka tetap aman.
+    if (key !== shownKey) {
+      cluster.clearLayers();
+      cluster.addLayers(ms);
+      shownKey = key;
+    } else {
+      cluster.refreshClusters();
+    }
+    // Batas dihitung dari koordinat, bukan dari cluster yang masih memuat bertahap.
+    if (list.length && !keepView) {
+      map.fitBounds(L.latLngBounds(list.map((o) => [o.latitude, o.longitude])), { padding: [30, 30], maxZoom: 16 });
+    }
   }
   // ---------- lokasi saya ----------
   const me = { lat: null, lng: null, acc: null, watch: null, picking: false, appliedAt: null, shown: 10 };
@@ -418,6 +468,11 @@
     renderTable();
   }));
   $("prev").addEventListener("click", () => { state.page--; renderTable(); });
+  $("mSort").addEventListener("change", () => {
+    const [k, dir] = $("mSort").value.split("|");
+    state.sort = k; state.asc = dir === "asc"; state.page = 0;
+    renderTable();
+  });
   $("next").addEventListener("click", () => { state.page++; renderTable(); });
 
   function renderTable() {
@@ -435,12 +490,12 @@
       const v = visits.get(o.id);
       const done = !!v?.visited;
       return `<tr data-i="${o._i}">
-      <td><span class="pill ${done ? "pill-done" : "pill-todo"}">${done ? "Sudah" : "Belum"}</span></td>
-      <td>${esc(o["Store Name"] || o.name)}</td><td>${esc(o["Store Owner"])}</td><td>${esc(o["Store Type"])}</td>
-      <td>${esc(o.Kecamatan)}</td><td>${esc(o.Kelurahan)}</td><td>${esc(o["Top Seller AMDK"])}</td>
-      <td class="num">${o._rev ? fmt.format(o._rev) : "–"}</td>
-      <td class="note-cell" title="${esc(v?.note)}">${esc(v?.note)}</td>
-      <td class="num dist-col"${me.lat == null ? " hidden" : ""}>${o._dist != null ? fmtDist(o._dist) : ""}</td></tr>`;
+      <td class="c-status"><span class="pill ${done ? "pill-done" : "pill-todo"}">${done ? "Sudah" : "Belum"}</span></td>
+      <td class="c-name">${esc(o["Store Name"] || o.name)}</td><td class="c-owner">${esc(o["Store Owner"])}</td><td class="c-type">${esc(o["Store Type"])}</td>
+      <td class="c-kec">${esc(o.Kecamatan)}</td><td class="c-kel" data-kec="${esc(o.Kecamatan)}">${esc(o.Kelurahan)}</td><td class="c-top">${esc(o["Top Seller AMDK"])}</td>
+      <td class="num c-rev">${o._rev ? fmt.format(o._rev) : "–"}</td>
+      <td class="note-cell c-note" title="${esc(v?.note)}">${esc(v?.note)}</td>
+      <td class="num dist-col c-dist"${me.lat == null ? " hidden" : ""}>${o._dist != null ? fmtDist(o._dist) : ""}</td></tr>`;
     }).join("") ||
       '<tr><td colspan="10">Tidak ada outlet yang cocok dengan filter.</td></tr>';
     document.querySelectorAll("th[data-sort]").forEach((th) => {
@@ -448,6 +503,8 @@
       th.classList.toggle("asc", th.dataset.sort === k && state.asc);
     });
     document.querySelectorAll("th.dist-col").forEach((th) => { th.hidden = me.lat == null; });
+    const ms = $("mSort"), want = `${k}|${state.asc ? "asc" : "desc"}`;
+    if ([...ms.options].some((op) => op.value === want)) ms.value = want;
     $("pageInfo").textContent = `Halaman ${state.page + 1} dari ${pages} · ${fmt.format(rows.length)} outlet`;
     $("prev").disabled = state.page === 0;
     $("next").disabled = state.page >= pages - 1;
@@ -467,6 +524,7 @@
       <span class="count">${fmt.format(v)}</span></div>`).join("") || "<p>Tidak ada data.</p>"}</div>`;
   }
   function renderSummary() {
+    summaryDirty = false;
     const revBand = (o) => {
       const r = o._rev;
       if (!r) return "Tidak diisi";
@@ -578,6 +636,8 @@
       ${brandRows}
 `;
     $("modal").classList.remove("hidden");
+    $("modal").scrollTop = 0;
+    document.body.classList.add("no-scroll");
     $("modalBody").querySelectorAll(".photos img").forEach((img) => img.addEventListener("error", () => {
       const fail = document.createElement("span");
       fail.className = "photo-fail";
@@ -629,7 +689,10 @@
       }
     });
   }
-  function closeModal() { $("modal").classList.add("hidden"); }
+  function closeModal() {
+    $("modal").classList.add("hidden");
+    document.body.classList.toggle("no-scroll", $("filters").classList.contains("open"));
+  }
   $("modalClose").addEventListener("click", closeModal);
   $("modal").addEventListener("click", (e) => { if (e.target.id === "modal") closeModal(); });
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeModal(); });
@@ -638,7 +701,9 @@
   document.querySelectorAll(".tab").forEach((b) => b.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
     document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("hidden", p.id !== "tab-" + b.dataset.tab));
-    if (b.dataset.tab === "map") map.invalidateSize();
+    activeTab = b.dataset.tab;
+    if (activeTab === "map") map.invalidateSize();
+    if (activeTab === "summary" && summaryDirty) { renderSummary(); summaryDirty = false; }
   }));
 
   // ---------- export ----------
@@ -677,6 +742,10 @@
 
   const dates = outlets.map((o) => o.created_at).filter(Boolean).sort();
   $("subtitle").textContent = `${fmt.format(outlets.length)} outlet hasil survei · ${dates[0].slice(0, 10)} s/d ${dates[dates.length - 1].slice(0, 10)}`;
+  const setTopbarH = () => document.documentElement.style.setProperty("--topbar-h", document.querySelector(".topbar").offsetHeight + "px");
+  setTopbarH();
+  window.addEventListener("resize", setTopbarH);
+
   initStore();
   apply();
 })();
