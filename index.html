@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
-<link rel="stylesheet" href="style.css?v=f46f79ae4c">
+<link rel="stylesheet" href="style.css?v=c457e16b0d">
 </head>
 <body>
 <header class="topbar">
@@ -21,8 +21,8 @@
     </form>
   </div>
   <div class="top-actions">
-    <button id="btnExport" class="btn">Unduh Excel</button>
-    <button id="btnFilters" class="btn btn-ghost only-mobile">Filter</button>
+    <button id="btnExport" class="btn"><span class="hide-sm">Unduh </span>Excel</button>
+    <button id="btnFilters" class="btn btn-ghost only-mobile">Filter <span class="badge" id="filterCount" hidden></span></button>
   </div>
 </header>
 
@@ -30,7 +30,10 @@
   <aside class="filters" id="filters">
     <div class="filters-head">
       <h2>Filter</h2>
-      <button id="btnReset" class="link">Reset</button>
+      <div class="filters-head-actions">
+        <button id="btnReset" class="link" type="button">Reset</button>
+        <button id="btnFiltersClose" class="icon-btn only-mobile" type="button" aria-label="Tutup filter">×</button>
+      </div>
     </div>
     <label class="field">
       <span>Cari nama / pemilik / alamat</span>
@@ -67,6 +70,9 @@
       <legend>Fasilitas pendingin</legend>
       <div id="fCool" class="chips"></div>
     </fieldset>
+    <div class="filters-foot only-mobile">
+      <button id="btnApply" class="btn" type="button">Lihat outlet</button>
+    </div>
   </aside>
 
   <main class="content">
@@ -90,8 +96,8 @@
         <div class="nearby-head">
           <h3>Outlet terdekat</h3>
           <div class="nearby-actions">
-            <button class="btn" id="btnLocate" type="button">Gunakan lokasi saya</button>
-            <button class="btn btn-ghost" id="btnPick" type="button">Pilih titik di peta</button>
+            <button class="btn" id="btnLocate" type="button">Lokasi saya</button>
+            <button class="btn btn-ghost" id="btnPick" type="button">Pilih di peta</button>
           </div>
         </div>
         <p class="loc-note" id="locNote">Aktifkan lokasi untuk melihat outlet terdekat dari posisimu. Daftar mengikuti filter yang aktif.</p>
@@ -101,6 +107,16 @@
     </section>
 
     <section class="panel hidden" id="tab-table">
+      <label class="m-sort only-mobile"><span>Urutkan</span>
+        <select id="mSort">
+          <option value="created_at|desc">Survei terbaru</option>
+          <option value="Store Name|asc">Nama toko (A–Z)</option>
+          <option value="_dist|asc">Jarak terdekat</option>
+          <option value="_visit|asc">Belum didatangi dulu</option>
+          <option value="Kecamatan|asc">Kecamatan (A–Z)</option>
+          <option value="Daily Revenue Average|desc">Omzet tertinggi</option>
+        </select>
+      </label>
       <div class="table-wrap">
         <table id="tbl">
           <thead><tr>
@@ -133,7 +149,7 @@
 
 <div class="modal hidden" id="modal" role="dialog" aria-modal="true">
   <div class="modal-box">
-    <button class="modal-close" id="modalClose" aria-label="Tutup">×</button>
+    <div class="modal-bar"><button class="modal-close" id="modalClose" type="button" aria-label="Tutup">×</button></div>
     <div id="modalBody"></div>
   </div>
 </div>
@@ -143,6 +159,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="config.js?v=5202c1eca6"></script>
 <script src="data/outlets.js?v=e7805a1ad4"></script>
-<script src="app.js?v=de46460f2d"></script>
+<script src="app.js?v=c0b58011b7"></script>
 </body>
 </html>
