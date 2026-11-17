@@ -7,7 +7,10 @@
  */
 const SHEET_NAME = "Kunjungan";
 const HEADERS = ["id", "Nama Toko", "Kecamatan", "Kelurahan", "Status Kunjungan",
-  "Tanggal Kunjungan", "Dikunjungi oleh", "Catatan", "Terakhir diperbarui"];
+  "Tanggal Kunjungan", "Dikunjungi oleh", "Catatan", "Terakhir diperbarui",
+  "Hasil Kunjungan", "Alasan Belum Mau CB", "Diperbarui oleh"];
+// Versi 2 menambah kolom J-L. Baris lama tetap dibaca apa adanya (hasilnya kosong).
+const VERSION = 2;
 
 function getSheet_() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -17,7 +20,16 @@ function getSheet_() {
     sh.appendRow(HEADERS);
     sh.setFrozenRows(1);
   }
+  ensureHeaders_(sh);
   return sh;
+}
+
+// Lengkapi judul kolom baru tanpa mengubah data yang sudah ada.
+function ensureHeaders_(sh) {
+  const current = sh.getRange(1, 1, 1, HEADERS.length).getValues()[0];
+  HEADERS.forEach((h, i) => {
+    if (!current[i]) sh.getRange(1, i + 1).setValue(h);
+  });
 }
 
 function json_(obj) {
@@ -45,8 +57,11 @@ function doGet(e) {
     by: untext_(r[6]),
     note: untext_(r[7]),
     updatedAt: toIso_(r[8]),
+    result: untext_(r[9]),
+    reasons: untext_(r[10]),
+    updatedBy: untext_(r[11]),
   }));
-  return json_({ ok: true, visits: visits });
+  return json_({ ok: true, version: VERSION, visits: visits });
 }
 
 function doPost(e) {
@@ -65,9 +80,17 @@ function doPost(e) {
       if (idx > 0) sh.deleteRow(idx + 1);
       return json_({ ok: true });
     }
+    let result = text_(b.result);
+    let reasons = text_(Array.isArray(b.reasons) ? b.reasons.join("; ") : b.reasons);
+    // Web versi lama tidak mengirim hasil: pertahankan isi kolom J-K yang sudah ada.
+    if (b.result === undefined && idx > 0) {
+      const old = sh.getRange(idx + 1, 10, 1, 2).getValues()[0];
+      result = old[0];
+      reasons = old[1];
+    }
     const row = [String(b.id), text_(b.nama), text_(b.kecamatan), text_(b.kelurahan),
       b.visited ? "Sudah didatangi" : "Belum didatangi", toDate_(b.visitedAt),
-      text_(b.by), text_(b.note), toDate_(b.updatedAt)];
+      text_(b.by), text_(b.note), toDate_(b.updatedAt), result, reasons, text_(b.updatedBy || b.by)];
     if (idx > 0) sh.getRange(idx + 1, 1, 1, row.length).setValues([row]);
     else sh.appendRow(row);
     return json_({ ok: true });

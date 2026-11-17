@@ -54,5 +54,18 @@ melihat outlet mana yang sudah didatangi, sambungkan ke Google Sheet:
    lalu commit & push.
 
 Tab **Kunjungan** di sheet terisi otomatis (id, nama toko, kecamatan, kelurahan, status, tanggal,
-petugas, catatan). Web memuat ulang data tiap 30 detik. Kalau `Code.gs` diubah, buat versi baru
+petugas, catatan, hasil kunjungan, alasan belum mau CB, diperbarui oleh). Web memuat ulang data tiap 30 detik. Kalau `Code.gs` diubah, buat versi baru
 lewat **Deploy → Manage deployments → Edit → Version: New version** supaya URL tetap sama.
+
+### Memperbarui skrip ke versi 2 (hasil kunjungan)
+
+Versi 2 menambah kolom **J Hasil Kunjungan** (Deal NOO / CB / Belum mau CB), **K Alasan Belum Mau CB**,
+dan **L Diperbarui oleh**. Baris yang sudah ada tidak diubah; kolom baru hanya ditambahkan judulnya.
+
+1. Buka Google Sheet tim → **Extensions → Apps Script**.
+2. Ganti seluruh isi `Code.gs` dengan isi terbaru [`apps-script/Code.gs`](apps-script/Code.gs), lalu simpan.
+3. **Deploy → Manage deployments** → pilih deployment yang ada → ikon pensil (**Edit**) →
+   **Version: New version** → **Deploy**. URL Web App tetap sama, `config.js` tidak perlu diubah.
+
+Selama skrip belum diperbarui, web tetap bisa menyimpan tanda didatangi dan catatan, tetapi pilihan
+hasil kunjungan dinonaktifkan dengan peringatan.
