@@ -166,14 +166,13 @@ dl.kv dd { margin: 0; word-break: break-word; }
 .dot-nocb { background: #dc2626; }
 .result-field, .reason-field { margin: 12px 0 0; }
 .result-field legend, .reason-field legend { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
-.reason-field legend small { font-weight: 400; }
-.seg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.result-field legend small, .reason-field legend small { font-weight: 400; }
+.seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
 .seg-opt { position: relative; }
 .seg-opt input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .seg-opt span { display: grid; place-items: center; min-height: 42px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); text-align: center; font-weight: 600; font-size: 13px; line-height: 1.2; }
 .seg-opt input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
 .seg-opt input:disabled + span { opacity: .5; }
-.seg-none input:checked + span { border-color: var(--muted); background: var(--bg); }
 .seg-noo input:checked + span { border-color: var(--noo); background: var(--noo-soft); color: var(--noo); }
 .seg-cb input:checked + span { border-color: var(--cb); background: var(--cb-soft); color: var(--cb); }
 .seg-nocb input:checked + span { border-color: var(--nocb); background: var(--nocb-soft); color: var(--nocb); }
@@ -305,7 +304,6 @@ dl.kv dd { margin: 0; word-break: break-word; }
   .visit-actions .btn { min-height: 44px; flex: 1; }
   .check input { width: 22px; height: 22px; }
   .visit-box textarea, .visit-box input[type="text"] { font-size: 16px; }
-  .seg { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .seg-opt span { min-height: 46px; font-size: 14px; }
   .reason-field .reason-opt { padding: 9px 0; }
 
