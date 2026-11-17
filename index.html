@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
-<link rel="stylesheet" href="style.css?v=c457e16b0d">
+<link rel="stylesheet" href="style.css?v=e04c29bd1b">
 </head>
 <body>
 <header class="topbar">
@@ -43,7 +43,20 @@
       <select id="fVisit">
         <option value="">Semua</option>
         <option value="belum">Belum didatangi</option>
-        <option value="sudah">Sudah didatangi</option>
+        <option value="sudah">Sudah didatangi (semua hasil)</option>
+        <option value="Deal NOO">Deal NOO</option>
+        <option value="CB">CB</option>
+        <option value="Belum mau CB">Belum mau CB</option>
+        <option value="visited">Didatangi, belum ada hasil</option>
+      </select>
+    </label>
+    <label class="field"><span>Alasan belum mau CB</span>
+      <select id="fReason">
+        <option value="">Semua</option>
+        <option value="Akses kendaraan susah">Akses kendaraan susah</option>
+        <option value="Jalan buntu">Jalan buntu</option>
+        <option value="Harga tidak masuk / beli di agen">Harga tidak masuk / beli di agen</option>
+        <option value="Lainnya">Lainnya</option>
       </select>
     </label>
     <label class="field"><span>Jarak dari lokasimu</span>
@@ -88,7 +101,10 @@
       <div id="map"></div>
       <div class="legend">
         <span><i class="dot dot-todo"></i>Belum didatangi</span>
-        <span><i class="dot dot-done"></i>Sudah didatangi</span>
+        <span><i class="dot dot-visited"></i>Didatangi, belum ada hasil</span>
+        <span><i class="dot dot-noo"></i>Deal NOO</span>
+        <span><i class="dot dot-cb"></i>CB</span>
+        <span><i class="dot dot-nocb"></i>Belum mau CB</span>
         <span><i class="dot dot-me"></i>Lokasi kamu</span>
         <span class="muted">Angka di lingkaran = jumlah outlet di area itu</span>
       </div>
@@ -113,6 +129,7 @@
           <option value="Store Name|asc">Nama toko (A–Z)</option>
           <option value="_dist|asc">Jarak terdekat</option>
           <option value="_visit|asc">Belum didatangi dulu</option>
+          <option value="_visit|desc">Deal NOO dulu</option>
           <option value="Kecamatan|asc">Kecamatan (A–Z)</option>
           <option value="Daily Revenue Average|desc">Omzet tertinggi</option>
         </select>
@@ -159,6 +176,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="config.js?v=5202c1eca6"></script>
 <script src="data/outlets.js?v=e7805a1ad4"></script>
-<script src="app.js?v=c0b58011b7"></script>
+<script src="app.js?v=f451deca7e"></script>
 </body>
 </html>
