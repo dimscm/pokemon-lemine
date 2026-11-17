@@ -626,12 +626,12 @@
       <h3>Kunjungan</h3>
       <label class="check"><input type="checkbox" id="visitDone" ${v?.visited || res ? "checked" : ""} ${locked ? "disabled" : ""}> Sudah didatangi</label>
       <fieldset class="field result-field">
-        <legend>Hasil kunjungan</legend>
+        <legend>Hasil kunjungan <small>(ketuk lagi untuk membatalkan)</small></legend>
         ${noResult ? `<p class="warn">Hasil kunjungan belum bisa disimpan karena skrip Google Sheet masih versi lama. Minta admin memperbarui Apps Script (lihat README).</p>` : ""}
         <div class="seg" role="radiogroup">
-          ${["", ...RESULTS].map((x) => `<label class="seg-opt seg-${x ? STATUS[x].cls : "none"}">
+          ${RESULTS.map((x) => `<label class="seg-opt seg-${STATUS[x].cls}">
             <input type="radio" name="visitResult" value="${esc(x)}" ${res === x ? "checked" : ""} ${dis}>
-            <span>${x || "Belum ada"}</span></label>`).join("")}
+            <span>${x}</span></label>`).join("")}
         </div>
       </fieldset>
       <fieldset class="field reason-field" id="reasonBox" ${res === "Belum mau CB" ? "" : "hidden"}>
@@ -727,9 +727,12 @@
     renderVisitMeta(o);
 
     // Memilih hasil berarti outlet sudah didatangi; alasan hanya untuk "Belum mau CB".
-    $("modalBody").querySelectorAll('input[name="visitResult"]').forEach((el) => el.addEventListener("change", () => {
-      if (el.value) $("visitDone").checked = true;
-      $("reasonBox").hidden = el.value !== "Belum mau CB";
+    // Mengetuk pilihan yang sudah terpilih membatalkannya.
+    let picked = visits.get(o.id)?.result || "";
+    $("modalBody").querySelectorAll('input[name="visitResult"]').forEach((el) => el.addEventListener("click", () => {
+      if (el.value === picked) { el.checked = false; picked = ""; } else { picked = el.value; }
+      if (picked) $("visitDone").checked = true;
+      $("reasonBox").hidden = picked !== "Belum mau CB";
     }));
     const otherBox = $("modalBody").querySelector(`input[name="visitReason"][value="${OTHER}"]`);
     otherBox.addEventListener("change", () => {
