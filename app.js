@@ -333,9 +333,11 @@
   }
 
   // ---------- map ----------
-  const map = L.map("map", { preferCanvas: true, maxZoom: 19 }).setView([-6.32, 106.84], 11);
-  // Toleransi sentuh lebih lebar supaya titik kecil mudah diketuk di HP.
+  // Toleransi sentuh lebih lebar supaya titik kecil mudah diketuk di HP. Satu kanvas untuk semua
+  // gambar peta: kanvas kedua (mis. garis kelompok toko berlokasi sama) akan menutupi titik toko
+  // dan menelan kliknya.
   const renderer = L.canvas({ tolerance: 10 });
+  const map = L.map("map", { preferCanvas: true, renderer, maxZoom: 19 }).setView([-6.32, 106.84], 11);
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     maxZoom: 19, attribution: "&copy; OpenStreetMap contributors",
   }).addTo(map);
