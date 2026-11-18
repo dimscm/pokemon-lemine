@@ -16,12 +16,12 @@
   --visited-soft: #e2e8f0;
   --noo: #15803d;
   --noo-soft: #dcfce7;
-  --cb: #6d28d9;
-  --cb-soft: #ede9fe;
+  --cb: #15803d;
+  --cb-soft: #dcfce7;
   --nocb: #b91c1c;
   --nocb-soft: #fee2e2;
-  --fu: #0f766e;
-  --fu-soft: #ccfbf1;
+  --fu: #a16207;
+  --fu-soft: #fef9c3;
   --np: #be185d;
   --np-soft: #fce7f3;
 }
@@ -44,12 +44,12 @@
     --visited-soft: #263140;
     --noo: #4ade80;
     --noo-soft: #12301d;
-    --cb: #c4b5fd;
-    --cb-soft: #2a1f47;
+    --cb: #4ade80;
+    --cb-soft: #12301d;
     --nocb: #fca5a5;
     --nocb-soft: #3b1515;
-    --fu: #5eead4;
-    --fu-soft: #123532;
+    --fu: #fde047;
+    --fu-soft: #3a3110;
     --np: #f9a8d4;
     --np-soft: #3b1229;
   }
@@ -172,9 +172,9 @@ dl.kv dd { margin: 0; word-break: break-word; }
 .dot-todo { background: #ea580c; }
 .dot-visited { background: #64748b; }
 .dot-noo { background: #16a34a; }
-.dot-cb { background: #7c3aed; }
+.dot-cb { background: #16a34a; }
 .dot-nocb { background: #dc2626; }
-.dot-fu { background: #0d9488; }
+.dot-fu { background: #eab308; }
 .dot-np { background: #db2777; }
 .result-field, .reason-field { margin: 12px 0 0; }
 .result-field legend, .reason-field legend { font-size: 12px; color: var(--muted); font-weight: 600; margin-bottom: 6px; }
@@ -193,6 +193,7 @@ dl.kv dd { margin: 0; word-break: break-word; }
 .reason-field { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
 .reason-field .reason-opt { display: flex; font-weight: 400; padding: 6px 0; }
 .reason-field input[type="text"] { width: 100%; margin-top: 6px; padding: 8px 9px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; }
+.note-inferred { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--fu-soft); color: var(--fu); font-size: 13px; }
 .warn { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: var(--todo-soft); color: var(--todo); font-size: 13px; }
 .note-cell { max-width: 260px; overflow: hidden; text-overflow: ellipsis; color: var(--muted); }
 .visit-box { background: var(--bg); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }

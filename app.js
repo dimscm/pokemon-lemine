@@ -33,9 +33,9 @@
     todo: { label: "Belum didatangi", short: "Belum", cls: "todo", color: "#ea580c", rank: 0 },
     visited: { label: "Didatangi, belum ada hasil", short: "Didatangi", cls: "visited", color: "#64748b", rank: 1 },
     "Toko tidak potensi": { label: "Toko tidak potensi", short: "Tidak potensi", cls: "np", color: "#db2777", rank: 2 },
-    "Perlu follow up": { label: "Perlu follow up", short: "Follow up", cls: "fu", color: "#0d9488", rank: 3 },
+    "Perlu follow up": { label: "Perlu follow up", short: "Follow up", cls: "fu", color: "#eab308", rank: 3 },
     "Belum mau CB": { label: "Belum mau CB", short: "Belum mau CB", cls: "nocb", color: "#dc2626", rank: 4 },
-    CB: { label: "CB", short: "CB", cls: "cb", color: "#7c3aed", rank: 5 },
+    CB: { label: "CB", short: "CB", cls: "cb", color: "#16a34a", rank: 5 },
     "Deal NOO": { label: "Deal NOO", short: "Deal NOO", cls: "noo", color: "#16a34a", rank: 6 },
   };
 
@@ -113,10 +113,20 @@
     store.lastSig = sig;
     visits.clear();
     store.apiVersion = j.version || 1;
-    j.visits.forEach((v) => visits.set(v.id, Object.assign({}, v, {
-      result: v.result || "",
-      reasons: String(v.reasons || "").split("; ").filter(Boolean),
-    })));
+    const inf = window.INFERRED_RESULTS || { items: {} };
+    j.visits.forEach((v) => {
+      const rec = Object.assign({}, v, {
+        result: v.result || "",
+        reasons: String(v.reasons || "").split("; ").filter(Boolean),
+      });
+      // Kunjungan lama (sebelum ada pilihan hasil): pakai hasil yang diperkirakan dari catatannya,
+      // selama hasilnya masih kosong dan catatannya belum diubah sejak diperkirakan.
+      const guess = inf.items[v.id];
+      if (!rec.result && guess && (!rec.updatedAt || rec.updatedAt <= inf.asOf)) {
+        Object.assign(rec, { result: guess.result, reasons: guess.reasons, inferred: true });
+      }
+      visits.set(v.id, rec);
+    });
     renderSyncNote();
     refresh();
   }
@@ -652,6 +662,7 @@
       <label class="check"><input type="checkbox" id="visitDone" ${v?.visited || res ? "checked" : ""} ${locked ? "disabled" : ""}> Sudah didatangi</label>
       <fieldset class="field result-field">
         <legend>Hasil kunjungan <small>(ketuk lagi untuk membatalkan)</small></legend>
+        ${v?.inferred ? `<p class="note-inferred">Hasil ini diisi otomatis dari catatan petugas. Periksa, lalu klik Simpan untuk menyimpannya ke Google Sheet.</p>` : ""}
         ${noResult ? `<p class="warn">Hasil kunjungan belum bisa disimpan karena skrip Google Sheet masih versi lama. Minta admin memperbarui Apps Script (lihat README).</p>` : ""}
         <div class="seg" role="radiogroup">
           ${RESULTS.map((x) => `<label class="seg-opt seg-${STATUS[x].cls}">
@@ -845,11 +856,12 @@
     btn.disabled = true;
     try {
       const who = await names(filtered.flatMap((o) => [visits.get(o.id)?.by, visits.get(o.id)?.updatedBy]));
-      const extra = ["Status Kunjungan", "Hasil Kunjungan", "Alasan", "Tanggal Kunjungan",
+      const extra = ["Status Kunjungan", "Hasil Kunjungan", "Alasan", "Hasil dari catatan", "Tanggal Kunjungan",
         "Dikunjungi oleh", "Catatan", "Terakhir diperbarui", "Diperbarui oleh"];
       const aoa = [extra.concat(RAW.cols), ...filtered.map((o) => {
         const v = visits.get(o.id);
         return [isVisited(o) ? "Sudah didatangi" : "Belum didatangi", v?.result || "", reasonsOf(o).join("; "),
+          v?.inferred ? "Ya (belum dikonfirmasi)" : "",
           fmtDate(v?.visitedAt), who[v?.by] || "", v?.note || "", fmtDate(v?.updatedAt),
           who[v?.updatedBy] || who[v?.by] || ""].concat(RAW.cols.map((c) => o[c]));
       })];
