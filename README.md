@@ -69,3 +69,7 @@ dan **L Diperbarui oleh**. Baris yang sudah ada tidak diubah; kolom baru hanya d
 
 Selama skrip belum diperbarui, web tetap bisa menyimpan tanda didatangi dan catatan, tetapi pilihan
 hasil kunjungan dinonaktifkan dengan peringatan.
+
+Hasil **Perlu follow up** dan **Toko tidak potensi** beserta alasannya juga disimpan di
+kolom J–K yang sama, jadi tidak perlu memperbarui skrip lagi. Judul kolom K boleh diganti menjadi
+"Alasan" langsung di sheet; skrip membaca kolom menurut posisinya, bukan judulnya.

@@ -18,15 +18,25 @@
   const PAGE = 50;
   const LS_KEY = "outlet-lm-visits";
   // Hasil kunjungan yang bisa dipilih petugas, dan alasan bila outlet belum mau CB.
-  const RESULTS = ["Deal NOO", "CB", "Belum mau CB"];
-  const REASONS = ["Akses kendaraan susah", "Jalan buntu", "Harga tidak masuk / beli di agen"];
+  const RESULTS = ["Deal NOO", "CB", "Belum mau CB", "Perlu follow up", "Toko tidak potensi"];
+  // Hasil yang wajib disertai alasan, beserta pilihan alasannya (selalu ditambah "Lainnya").
+  const REASONS = {
+    "Belum mau CB": ["Akses kendaraan susah", "Jalan buntu", "Harga tidak masuk / beli di agen"],
+    "Perlu follow up": ["Pemilik tidak ada", "Toko sedang tutup"],
+    "Toko tidak potensi": ["Toko terlalu kecil", "Penjualan AMDK sangat sedikit", "Tidak menjual AMDK",
+      "Lokasi sepi pembeli", "Toko akan tutup / pindah"],
+  };
   const OTHER = "Lainnya";
+  // "Belum mau CB" -> "belum mau CB" (singkatan tetap huruf besar).
+  const lowerFirst = (t) => t.charAt(0).toLowerCase() + t.slice(1);
   const STATUS = {
     todo: { label: "Belum didatangi", short: "Belum", cls: "todo", color: "#ea580c", rank: 0 },
     visited: { label: "Didatangi, belum ada hasil", short: "Didatangi", cls: "visited", color: "#64748b", rank: 1 },
-    "Belum mau CB": { label: "Belum mau CB", short: "Belum mau CB", cls: "nocb", color: "#dc2626", rank: 2 },
-    CB: { label: "CB", short: "CB", cls: "cb", color: "#7c3aed", rank: 3 },
-    "Deal NOO": { label: "Deal NOO", short: "Deal NOO", cls: "noo", color: "#16a34a", rank: 4 },
+    "Toko tidak potensi": { label: "Toko tidak potensi", short: "Tidak potensi", cls: "np", color: "#db2777", rank: 2 },
+    "Perlu follow up": { label: "Perlu follow up", short: "Follow up", cls: "fu", color: "#0d9488", rank: 3 },
+    "Belum mau CB": { label: "Belum mau CB", short: "Belum mau CB", cls: "nocb", color: "#dc2626", rank: 4 },
+    CB: { label: "CB", short: "CB", cls: "cb", color: "#7c3aed", rank: 5 },
+    "Deal NOO": { label: "Deal NOO", short: "Deal NOO", cls: "noo", color: "#16a34a", rank: 6 },
   };
 
   const state = { brands: new Set(), coolers: new Set(), sort: "created_at", asc: false, page: 0 };
@@ -588,11 +598,13 @@
     };
     $("charts").innerHTML = [
       barCard("Hasil kunjungan", countBy(filtered, (o) => statusOf(o).label)),
-      barCard("Alasan belum mau CB", countBy(filtered.filter((o) => statusKey(o) === "Belum mau CB"),
-        (o) => reasonsOf(o).map((x) => (x.startsWith(OTHER) ? OTHER : x)))),
+      ...Object.keys(REASONS).map((res) => barCard(`Alasan ${lowerFirst(res)}`,
+        countBy(filtered.filter((o) => statusKey(o) === res), (o) => reasonsOf(o).map((x) => (x.startsWith(OTHER) ? OTHER : x))))),
       barCard("Kunjungan per petugas", countBy(filtered.filter(isVisited), (o) => personName(visits.get(o.id)?.by)), 20),
       barCard("Deal NOO per Kecamatan", countBy(filtered.filter((o) => statusKey(o) === "Deal NOO"), (o) => o.Kecamatan), 15),
       barCard("Belum mau CB per Kecamatan", countBy(filtered.filter((o) => statusKey(o) === "Belum mau CB"), (o) => o.Kecamatan), 15),
+      barCard("Toko tidak potensi per Kecamatan", countBy(filtered.filter((o) => statusKey(o) === "Toko tidak potensi"), (o) => o.Kecamatan), 15),
+      barCard("Perlu follow up per Kecamatan", countBy(filtered.filter((o) => statusKey(o) === "Perlu follow up"), (o) => o.Kecamatan), 15),
       barCard("Sudah didatangi per Kecamatan", countBy(filtered.filter(isVisited), (o) => o.Kecamatan), 15),
       barCard("Outlet per Kecamatan", countBy(filtered, (o) => o.Kecamatan), 15),
       barCard("Brand AMDK yang tersedia", countBy(filtered, (o) => o._brands)),
@@ -621,9 +633,20 @@
     const noResult = store.mode === "api" && store.apiVersion < 2;
     const res = v?.result || "";
     const reasons = v?.reasons || [];
-    const other = reasons.find((x) => x.startsWith(OTHER));
-    const otherText = other ? other.replace(/^Lainnya:?\s*/, "") : "";
     const dis = locked || noResult ? "disabled" : "";
+    // Satu kotak alasan per hasil; hanya kotak milik hasil terpilih yang tampil.
+    const reasonBox = (rs) => {
+      const cls = STATUS[rs].cls;
+      const mine = res === rs ? reasons : [];
+      const other = mine.find((x) => x.startsWith(OTHER));
+      const otherText = other ? other.replace(/^Lainnya:?\s*/, "") : "";
+      return `<fieldset class="field reason-field" data-result="${esc(rs)}" ${res === rs ? "" : "hidden"}>
+        <legend>Alasan ${esc(lowerFirst(rs))} <small>(boleh lebih dari satu)</small></legend>
+        ${[...REASONS[rs], OTHER].map((x) => `<label class="check reason-opt">
+          <input type="checkbox" name="visitReason-${cls}" value="${esc(x)}" ${(x === OTHER ? !!other : mine.includes(x)) ? "checked" : ""} ${dis}> ${esc(x)}</label>`).join("")}
+        <input type="text" class="reason-other" placeholder="Tulis alasan lainnya" value="${esc(otherText)}" ${other ? "" : "hidden"} ${dis}>
+      </fieldset>`;
+    };
     return `<div class="detail-section visit-box">
       <h3>Kunjungan</h3>
       <label class="check"><input type="checkbox" id="visitDone" ${v?.visited || res ? "checked" : ""} ${locked ? "disabled" : ""}> Sudah didatangi</label>
@@ -636,12 +659,7 @@
             <span>${x}</span></label>`).join("")}
         </div>
       </fieldset>
-      <fieldset class="field reason-field" id="reasonBox" ${res === "Belum mau CB" ? "" : "hidden"}>
-        <legend>Alasan belum mau CB <small>(boleh lebih dari satu)</small></legend>
-        ${[...REASONS, OTHER].map((x) => `<label class="check reason-opt">
-          <input type="checkbox" name="visitReason" value="${esc(x)}" ${(x === OTHER ? !!other : reasons.includes(x)) ? "checked" : ""} ${dis}> ${esc(x)}</label>`).join("")}
-        <input type="text" id="reasonOther" placeholder="Tulis alasan lainnya" value="${esc(otherText)}" ${other ? "" : "hidden"} ${dis}>
-      </fieldset>
+      ${Object.keys(REASONS).map(reasonBox).join("")}
       <label class="field"><span>Catatan</span>
         <textarea id="visitNote" rows="3" placeholder="mis. pemilik tertarik, minta dihubungi minggu depan" ${locked ? "disabled" : ""}>${esc(v?.note)}</textarea>
       </label>
@@ -728,18 +746,21 @@
     }, { once: true }));
     renderVisitMeta(o);
 
-    // Memilih hasil berarti outlet sudah didatangi; alasan hanya untuk "Belum mau CB".
+    // Memilih hasil berarti outlet sudah didatangi; kotak alasan mengikuti hasil yang dipilih.
     // Mengetuk pilihan yang sudah terpilih membatalkannya.
+    const boxes = [...$("modalBody").querySelectorAll(".reason-field")];
     let picked = visits.get(o.id)?.result || "";
     $("modalBody").querySelectorAll('input[name="visitResult"]').forEach((el) => el.addEventListener("click", () => {
       if (el.value === picked) { el.checked = false; picked = ""; } else { picked = el.value; }
       if (picked) $("visitDone").checked = true;
-      $("reasonBox").hidden = picked !== "Belum mau CB";
+      boxes.forEach((b) => { b.hidden = b.dataset.result !== picked; });
     }));
-    const otherBox = $("modalBody").querySelector(`input[name="visitReason"][value="${OTHER}"]`);
-    otherBox.addEventListener("change", () => {
-      $("reasonOther").hidden = !otherBox.checked;
-      if (otherBox.checked) $("reasonOther").focus();
+    boxes.forEach((b) => {
+      const otherBox = b.querySelector(`input[value="${OTHER}"]`), text = b.querySelector(".reason-other");
+      otherBox.addEventListener("change", () => {
+        text.hidden = !otherBox.checked;
+        if (otherBox.checked) text.focus();
+      });
     });
 
     $("visitSave").addEventListener("click", async () => {
@@ -749,15 +770,15 @@
       const result = $("modalBody").querySelector('input[name="visitResult"]:checked')?.value || "";
       const done = $("visitDone").checked || !!result;
       let reasons = [];
-      if (result === "Belum mau CB") {
-        reasons = [...$("modalBody").querySelectorAll('input[name="visitReason"]:checked')].map((el) => el.value)
-          .filter((x) => x !== OTHER);
-        if (otherBox.checked) {
-          const txt = $("reasonOther").value.trim();
-          if (!txt) { $("visitMeta").textContent = "Tulis alasan lainnya, atau hapus centang Lainnya."; $("reasonOther").focus(); return; }
+      const box = boxes.find((b) => b.dataset.result === result);
+      if (box) {
+        reasons = [...box.querySelectorAll("input[type=checkbox]:checked")].map((el) => el.value).filter((x) => x !== OTHER);
+        if (box.querySelector(`input[value="${OTHER}"]`).checked) {
+          const text = box.querySelector(".reason-other"), txt = text.value.trim();
+          if (!txt) { $("visitMeta").textContent = "Tulis alasan lainnya, atau hapus centang Lainnya."; text.focus(); return; }
           reasons.push(`${OTHER}: ${txt}`);
         }
-        if (!reasons.length) { $("visitMeta").textContent = "Pilih minimal satu alasan belum mau CB."; return; }
+        if (!reasons.length) { $("visitMeta").textContent = `Pilih minimal satu alasan ${lowerFirst(result)}.`; return; }
       }
       const now = new Date().toISOString();
       let by = store.uid || "";
@@ -824,7 +845,7 @@
     btn.disabled = true;
     try {
       const who = await names(filtered.flatMap((o) => [visits.get(o.id)?.by, visits.get(o.id)?.updatedBy]));
-      const extra = ["Status Kunjungan", "Hasil Kunjungan", "Alasan Belum Mau CB", "Tanggal Kunjungan",
+      const extra = ["Status Kunjungan", "Hasil Kunjungan", "Alasan", "Tanggal Kunjungan",
         "Dikunjungi oleh", "Catatan", "Terakhir diperbarui", "Diperbarui oleh"];
       const aoa = [extra.concat(RAW.cols), ...filtered.map((o) => {
         const v = visits.get(o.id);
